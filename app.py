@@ -1,37 +1,26 @@
 import streamlit as st
-from supabase import create_client, Client
-from groq import Groq
+import db_connection
+import db_connection.connection
+import chat_history.chat
 
-url = st.secrets["SUPABASE_URL"]
-key = st.secrets["SUPABASE_KEY"]
-supabase: Client = create_client(url, key)
+supabase = db_connection.connection.get_conn()
+client = db_connection.connection.get__groq_cred()
 
-if 'GROQ_API_KEY' in st.secrets:
-    api_key = st.secrets['GROQ_API_KEY']
-else:
-    st.sidebar.error("Please add your GROQ_API_KEY in secrets.toml")
-    st.stop()
-client = Groq(api_key=api_key)
-
-
-# Auth UI logic
-if "auth_mode" not in st.session_state:
-    st.session_state.auth_mode = "login"
-
-def toggle_mode():
-    if st.session_state.auth_mode == "login":
-        st.session_state.auth_mode = "signup"
-        # Logout user if switching to signup
-        if "user" in st.session_state:
-            del st.session_state["user"]
-    else:
+if "user" not in st.session_state:
+    if "auth_mode" not in st.session_state:
         st.session_state.auth_mode = "login"
 
-st.sidebar.button(
-    "Switch to Signup" if st.session_state.auth_mode == "login" else "Switch to Login",
-    on_click=toggle_mode
-)
+    def toggle_mode():
+        if st.session_state.auth_mode == "login":
+            st.session_state.auth_mode = "signup"
+        else:
+            st.session_state.auth_mode = "login"
 
+    # Show Switch button only if user is not logged in
+    st.sidebar.button(
+        "Switch to Signup" if st.session_state.auth_mode == "login" else "Switch to Login",
+        on_click=toggle_mode
+    )
 # Signup Screen
 if st.session_state.auth_mode == "signup" and "user" not in st.session_state:
     st.title("🔑 Signup")
@@ -115,7 +104,7 @@ elif "user" in st.session_state:
         )
         first_question = response.choices[0].message.content
         st.session_state.messages.append({"role": "assistant", "content": first_question})
-
+        chat_history.chat.store_conversation(st.session_state.user.id,role,first_question,"")
     # Display chat history
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
@@ -155,3 +144,20 @@ elif "user" in st.session_state:
             message_placeholder.markdown(full_response)
 
         st.session_state.messages.append({"role": "assistant", "content": full_response})
+        chat_history.chat.store_conversation(st.session_state.user.id,role,st.session_state.messages[-2]["content"],prompt)
+
+    if st.sidebar.button("Show Previous Conversations"):
+        data = chat_history.chat.get_conversations_by_domain(st.session_state.user.id,role)
+        if data:
+            st.sidebar.subheader("Previous Conversations")
+            for convo in data:
+                st.sidebar.markdown(f"**Q:** {convo['question']}")
+                st.sidebar.markdown(f"**A:** {convo['answer']}")
+                st.sidebar.markdown("---")
+        else:
+            st.sidebar.info("No previous conversations found.")
+
+        
+
+        
+
