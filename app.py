@@ -3,6 +3,14 @@ import db_connection
 import db_connection.connection
 import chat_history.chat
 
+# Initialize chat history session state
+if 'history' not in st.session_state:
+    st.session_state.history = []
+
+# Function to add message to history
+def add_message(sender, message):
+    st.session_state.history.append((sender, message))
+
 supabase = db_connection.connection.get_conn()
 client = db_connection.connection.get__groq_cred()
 
@@ -21,6 +29,7 @@ if "user" not in st.session_state:
         "Switch to Signup" if st.session_state.auth_mode == "login" else "Switch to Login",
         on_click=toggle_mode
     )
+
 # Signup Screen
 if st.session_state.auth_mode == "signup" and "user" not in st.session_state:
     st.title("🔑 Signup")
@@ -70,22 +79,42 @@ elif st.session_state.auth_mode == "login" and "user" not in st.session_state:
 
 # Chat Screen (Only visible after login)
 elif "user" in st.session_state:
-    # Logout Button
-    if st.sidebar.button("Logout"):
-        st.session_state.pop("user")
-        st.rerun()
-
-    st.sidebar.write(f"Welcome {st.session_state.user.email}")
-
-    # Sidebar for role selection
+    # Sidebar layout
     with st.sidebar:
-        st.title('🤖Interview Preparation Chatbot')
+        # Logout Button
+        if st.button("Logout"):
+            st.session_state.pop("user")
+            st.rerun()
+
+        st.write(f"Welcome {st.session_state.user.email}")
+
+        # Interview Preparation Chatbot section
+        st.title('🤖 Interview Preparation Chatbot')
         role = st.selectbox(
             'Select your interview role:',
             ['Select', 'Software Engineer', 'Frontend Developer', 'Backend Developer', 'ML Engineer']
         )
         if role == 'Select':
             st.warning("Please select a role to begin.", icon="⚠️")
+        if 'previous_role' not in st.session_state:
+            st.session_state.previous_role = role
+
+        if role != st.session_state.previous_role:
+            st.session_state.previous_role = role
+            st.session_state.messages = []
+            st.session_state.history = []
+            st.rerun()
+
+        # ✅ Chat History at bottom
+        if st.button("Show Chat History"):
+            if "messages" in st.session_state and st.session_state.messages:
+                st.subheader("💬 Current Session Chat History")
+                for msg in st.session_state.messages:
+                    sender = "You" if msg["role"] == "user" else "Bot"
+                    st.markdown(f"**{sender}:** {msg['content']}")
+            else:
+                st.info("No chat history in this session yet.")
+
 
     # Initialize chat session state
     if "messages" not in st.session_state:
@@ -104,8 +133,10 @@ elif "user" in st.session_state:
         )
         first_question = response.choices[0].message.content
         st.session_state.messages.append({"role": "assistant", "content": first_question})
-        chat_history.chat.store_conversation(st.session_state.user.id,role,first_question,"")
-    # Display chat history
+        add_message("Bot", first_question)  # ✅ Add bot message to history
+        chat_history.chat.store_conversation(st.session_state.user.id, role, first_question, "")
+
+    # Display main chat
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
@@ -113,6 +144,7 @@ elif "user" in st.session_state:
     # User input prompt
     if prompt := st.chat_input("Your response here..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
+        add_message("You", prompt)  # ✅ Add user message to history
         with st.chat_message("user"):
             st.markdown(prompt)
 
@@ -144,20 +176,8 @@ elif "user" in st.session_state:
             message_placeholder.markdown(full_response)
 
         st.session_state.messages.append({"role": "assistant", "content": full_response})
-        chat_history.chat.store_conversation(st.session_state.user.id,role,st.session_state.messages[-2]["content"],prompt)
-
-    if st.sidebar.button("Show Previous Conversations"):
-        data = chat_history.chat.get_conversations_by_domain(st.session_state.user.id,role)
-        if data:
-            st.sidebar.subheader("Previous Conversations")
-            for convo in data:
-                st.sidebar.markdown(f"**Q:** {convo['question']}")
-                st.sidebar.markdown(f"**A:** {convo['answer']}")
-                st.sidebar.markdown("---")
-        else:
-            st.sidebar.info("No previous conversations found.")
-
-        
-
-        
-
+        add_message("Bot", full_response)  # ✅ Add bot message to history
+        chat_history.chat.store_conversation(
+            st.session_state.user.id, role,
+            st.session_state.messages[-2]["content"], prompt
+        )

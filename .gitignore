@@ -1,6 +1,12 @@
-# Environments
-.streamlit
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+venv/
+.venv/
+
+# Streamlit config and secrets
+.streamlit/
 .secrets.toml
 .config.toml
-.venv
-./venv

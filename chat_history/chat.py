@@ -24,5 +24,14 @@ def get_conversations_by_domain(user_id, domain):
                        .execute()
     return response.data
 
+def delete_conversation_by_id(convo_id):
+    try:
+        supabase.table("interview_conversations").delete().eq("id", convo_id).execute()
+        return True
+    except Exception as e:
+        print(f"Delete failed: {e}")
+        return False
+
+
 
 
