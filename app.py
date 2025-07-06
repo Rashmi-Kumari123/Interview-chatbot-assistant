@@ -40,7 +40,7 @@ if st.session_state.auth_mode == "signup" and "user" not in st.session_state:
             res = supabase.auth.sign_up({"email": email, "password": password})
             st.write(res)  # Debug output
             if res.user:
-                st.success("Account created. Check your email to confirm.")
+                st.success("Account created. ")
 
                 user_id = res.user.id
                 if user_id:
